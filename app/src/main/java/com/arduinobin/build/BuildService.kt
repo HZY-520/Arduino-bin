@@ -132,8 +132,9 @@ class BuildService : Service() {
             BuildSession.setStatus(BuildStatus.COMPILING, "编译 ${board.name}")
             log("开始编译 (FQBN: ${board.fqbn}) ...")
             val outputDir = File(TermuxEnv.workspaceDir, "build_output")
+            val buildDir = File(TermuxEnv.workspaceDir, "build_cache")
             val buildStart = System.currentTimeMillis()
-            val code = ArduinoCli.compile(board.fqbn, sketch.sketchDir, outputDir, onLine = log)
+            val code = ArduinoCli.compile(board.fqbn, sketch.sketchDir, outputDir, buildDir, onLine = log)
 
             if (code != 0) {
                 log("编译失败，退出码 $code。请查看上方完整错误信息。")
@@ -141,7 +142,7 @@ class BuildService : Service() {
                 return
             }
 
-            val artifacts = collectArtifacts(outputDir, buildStart)
+            val artifacts = collectArtifacts(outputDir, buildDir, buildStart)
             if (artifacts.isEmpty()) {
                 log("编译成功，但未找到 .bin/.hex 产物。")
             } else {
@@ -170,22 +171,31 @@ class BuildService : Service() {
     }
 
     /**
-     * 收集编译产物。多数平台会把 .bin/.hex/.elf 写到 [outputDir]（--output-dir）；
-     * 但 Realtek AmebaD 等平台把最终 .bin（如 km0_km4_image2.bin）写入芯片工具链目录
-     * （arduino15/packages/.../tools/...），此时回退扫描 packages 下本次新生成的固件文件。
+     * 收集编译产物。多数平台通过 --output-dir 把干净的 .hex/.bin 写到 [outputDir]；
+     * Realtek AmebaD 等平台则通过 post-build 钩子把最终 km0_km4_image2.bin 复制到
+     * {build.path}（即 --build-path 对应的 [buildDir]）。两者都扫描；若仍为空，回退
+     * 扫描芯片工具链目录（post-build 也会就地重写该镜像）。
      */
-    private fun collectArtifacts(outputDir: File, buildStart: Long): List<String> {
+    private fun collectArtifacts(outputDir: File, buildDir: File, buildStart: Long): List<String> {
         val firmwareExts = setOf("bin", "hex", "elf", "img", "uf2", "axf")
+        val since = buildStart - 60_000L
         val result = linkedSetOf<String>()
+
         outputDir.walkTopDown()
             .filter { it.isFile && it.extension.lowercase() in firmwareExts }
             .forEach { result += it.absolutePath }
 
+        if (buildDir.exists()) {
+            buildDir.walkTopDown()
+                .filter { it.isFile && it.extension.lowercase() in firmwareExts }
+                .filter { it.lastModified() >= since }
+                .forEach { result += it.absolutePath }
+        }
+
         if (result.isEmpty()) {
-            val packagesDir = File(TermuxEnv.dataDir, "packages")
-            if (packagesDir.exists()) {
-                val since = buildStart - 60_000L
-                packagesDir.walkTopDown()
+            val toolsDir = File(TermuxEnv.dataDir, "packages/realtek/tools/ameba_d_tools")
+            if (toolsDir.exists()) {
+                toolsDir.walkTopDown()
                     .filter { it.isFile && it.extension.lowercase() in firmwareExts }
                     .filter { it.lastModified() >= since }
                     .forEach { result += it.absolutePath }

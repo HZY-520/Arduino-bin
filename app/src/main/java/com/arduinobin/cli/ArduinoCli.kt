@@ -113,20 +113,30 @@ object ArduinoCli {
     suspend fun searchLibraries(query: String, onLine: (String) -> Unit) =
         run(listOf("lib", "search", query), onLine = onLine)
 
-    /** 编译指定 sketch；产物写入 outputDir。成功返回退出码。 */
+    /**
+     * 编译指定 sketch。
+     *  - [outputDir]：--output-dir，多数平台会把干净的 .hex/.bin 导到这里；
+     *  - [buildDir]：--build-path，对应 platform.txt 中的 {build.path}，Realtek AmebaD
+     *    等平台通过 post-build 钩子把最终 km0_km4_image2.bin 复制到此处。两个目录
+     *    都会被扫描以确保能找到产物。
+     * 成功返回退出码。
+     */
     suspend fun compile(
         fqbn: String,
         sketchDir: File,
         outputDir: File,
+        buildDir: File,
         killer: ProcessKiller? = null,
         onLine: (String) -> Unit,
     ): Int {
         outputDir.mkdirs()
+        buildDir.mkdirs()
         return run(
             listOf(
                 "compile",
                 "--fqbn", fqbn,
                 "--output-dir", outputDir.absolutePath,
+                "--build-path", buildDir.absolutePath,
                 sketchDir.absolutePath,
             ),
             cwd = TermuxEnv.workspaceDir,
