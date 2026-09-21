@@ -35,6 +35,18 @@ class MainViewModel : ViewModel() {
             LibraryInstaller.install(context, uri, librariesDir)
         }
 
+    /** 列出所有已安装的库。 */
+    suspend fun listInstalledLibraries(): List<LibraryInstaller.LibraryInfo> =
+        withContext(Dispatchers.IO) {
+            LibraryInstaller.listInstalled(File(TermuxEnv.workspaceDir, "libraries"))
+        }
+
+    /** 删除一个已安装的库，返回是否成功。 */
+    suspend fun deleteLibrary(dirName: String): Boolean =
+        withContext(Dispatchers.IO) {
+            LibraryInstaller.delete(dirName, File(TermuxEnv.workspaceDir, "libraries"))
+        }
+
     /** 把构建产物复制到用户通过 SAF 选择的目录树。 */
     fun exportArtifacts(context: Context, treeUri: Uri, artifacts: List<String>): Int {
         val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return 0

@@ -14,6 +14,15 @@ object LibraryInstaller {
 
     data class Result(val libraryName: String, val message: String)
 
+    /** 一个已安装库的元信息（来自 library.properties）。 */
+    data class LibraryInfo(
+        val dirName: String,
+        val name: String,
+        val version: String,
+        val author: String,
+        val sentence: String,
+    )
+
     fun install(context: Context, uri: Uri, librariesDir: File): Result {
         librariesDir.mkdirs()
         return try {
@@ -86,10 +95,46 @@ object LibraryInstaller {
     private fun readLibraryName(dir: File): String? {
         val props = File(dir, "library.properties")
         if (!props.exists()) return null
-        return props.readLines()
-            .firstOrNull { it.startsWith("name=") }
-            ?.substringAfter("name=")
-            ?.trim()
-            ?.ifBlank { null }
+        return readProps(props)["name"]
+    }
+
+    /** 读取 library.properties 为键值对。 */
+    private fun readProps(props: File): Map<String, String> {
+        val map = mutableMapOf<String, String>()
+        props.forEachLine { line ->
+            val idx = line.indexOf('=')
+            if (idx > 0) {
+                val key = line.substring(0, idx).trim()
+                val value = line.substring(idx + 1).trim()
+                if (key.isNotEmpty()) map[key] = value
+            }
+        }
+        return map
+    }
+
+    /** 列出库目录下所有已安装的库。 */
+    fun listInstalled(librariesDir: File): List<LibraryInfo> {
+        if (!librariesDir.exists()) return emptyList()
+        return librariesDir.listFiles { f -> f.isDirectory }
+            .orEmpty()
+            .mapNotNull { dir ->
+                val props = File(dir, "library.properties")
+                if (!props.exists()) return@mapNotNull null
+                val p = readProps(props)
+                LibraryInfo(
+                    dirName = dir.name,
+                    name = p["name"] ?: dir.name,
+                    version = p["version"] ?: "",
+                    author = p["author"] ?: "",
+                    sentence = p["sentence"] ?: p["paragraph"] ?: "",
+                )
+            }
+            .sortedBy { it.name.lowercase() }
+    }
+
+    /** 按目录名删除一个已安装的库。 */
+    fun delete(dirName: String, librariesDir: File): Boolean {
+        val dir = File(librariesDir, dirName)
+        return dir.exists() && dir.deleteRecursively()
     }
 }

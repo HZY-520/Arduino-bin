@@ -29,7 +29,7 @@ android {
     defaultConfig {
         applicationId = "com.arduinobin"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 28
         versionCode = 2
         versionName = "1.0.1"
         vectorDrawables { useSupportLibrary = true }
@@ -64,6 +64,10 @@ android {
     androidResources {
         noCompress += "zip"
         noCompress += "so"
+    }
+    lint {
+        // targetSdk 刻意降到 28，以规避 Android 10+ 对应用私有目录内 ELF 可执行文件的 W^X 限制。
+        disable += "ExpiredTargetSdkVersion"
     }
 }
 
