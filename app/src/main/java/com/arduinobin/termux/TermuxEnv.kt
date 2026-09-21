@@ -161,6 +161,8 @@ object TermuxEnv {
 
     /** 供在 bootstrap 里执行命令的基础环境变量。 */
     fun baseEnv(): Map<String, String> = mapOf(
+        // 关键：必须显式覆盖 PREFIX，否则 Termux 官方 bash 二进制内部仍指向
+        // 系统 Termux 应用的数据目录 /data/data/com.termux/files/usr，读取 profile 时会被拒绝。
         "PREFIX" to prefixDir.absolutePath,
         "HOME" to homeDir.absolutePath,
         "TMPDIR" to File(File(appContext.filesDir, "termux"), "tmp").also { it.mkdirs() }.absolutePath,
@@ -172,9 +174,15 @@ object TermuxEnv {
         "TERM" to "xterm-256color",
     )
 
-    /** 用 bootstrap 的 bash 执行一段 shell 脚本。 */
+    /**
+     * 用 bootstrap 的 bash 执行一段 shell 脚本。
+     * 不能用 login shell(``-l``)：Termux 官方 bootstrap 的 bash 把 PREFIX 硬编码为
+     * ``/data/data/com.termux/files/usr``，login shell 会去读其 ``etc/profile``，
+     * 而那是系统 Termux 应用的数据目录，本应用无权访问，导致 ``Permission denied``。
+     * 所需环境已由 [baseEnv] 显式传入，改用非 login 的 ``-c`` 即可。
+     */
     fun bash(script: String, extraEnv: Map<String, String> = emptyMap()): List<String> =
-        listOf(bashPath.absolutePath, "-lc", script)
+        listOf(bashPath.absolutePath, "-c", script)
 
     /** 生成 arduino-cli 使用的 arduino-cli.yaml 配置文件内容。 */
     fun writeArduinoCliConfig() {

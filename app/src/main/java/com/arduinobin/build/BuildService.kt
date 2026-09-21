@@ -132,6 +132,7 @@ class BuildService : Service() {
             BuildSession.setStatus(BuildStatus.COMPILING, "编译 ${board.name}")
             log("开始编译 (FQBN: ${board.fqbn}) ...")
             val outputDir = File(TermuxEnv.workspaceDir, "build_output")
+            val buildStart = System.currentTimeMillis()
             val code = ArduinoCli.compile(board.fqbn, sketch.sketchDir, outputDir, onLine = log)
 
             if (code != 0) {
@@ -140,11 +141,7 @@ class BuildService : Service() {
                 return
             }
 
-            val artifacts = outputDir.walkTopDown()
-                .filter { it.isFile && it.extension.lowercase() in setOf("bin", "hex", "elf") }
-                .map { it.absolutePath }
-                .toList()
-                .sorted()
+            val artifacts = collectArtifacts(outputDir, buildStart)
             if (artifacts.isEmpty()) {
                 log("编译成功，但未找到 .bin/.hex 产物。")
             } else {
@@ -170,6 +167,31 @@ class BuildService : Service() {
             FileOutputStream(dest).use { out -> input.copyTo(out) }
         }
         return dest
+    }
+
+    /**
+     * 收集编译产物。多数平台会把 .bin/.hex/.elf 写到 [outputDir]（--output-dir）；
+     * 但 Realtek AmebaD 等平台把最终 .bin（如 km0_km4_image2.bin）写入芯片工具链目录
+     * （arduino15/packages/.../tools/...），此时回退扫描 packages 下本次新生成的固件文件。
+     */
+    private fun collectArtifacts(outputDir: File, buildStart: Long): List<String> {
+        val firmwareExts = setOf("bin", "hex", "elf", "img", "uf2", "axf")
+        val result = linkedSetOf<String>()
+        outputDir.walkTopDown()
+            .filter { it.isFile && it.extension.lowercase() in firmwareExts }
+            .forEach { result += it.absolutePath }
+
+        if (result.isEmpty()) {
+            val packagesDir = File(TermuxEnv.dataDir, "packages")
+            if (packagesDir.exists()) {
+                val since = buildStart - 60_000L
+                packagesDir.walkTopDown()
+                    .filter { it.isFile && it.extension.lowercase() in firmwareExts }
+                    .filter { it.lastModified() >= since }
+                    .forEach { result += it.absolutePath }
+            }
+        }
+        return result.sorted()
     }
 
     private fun finishFailed() {
