@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.ArduinoBin" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#0D986A</item>
+        <item name="android:windowBackground">@color/screen_background</item>
+    </style>
+</resources>
