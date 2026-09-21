@@ -113,6 +113,17 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
         }
     }
 
+    val libZipPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val result = viewModel.installLibraryFromZip(context, uri)
+                snackbar.showSnackbar(result.message)
+            }
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         containerColor = MaterialTheme.colorScheme.background,
@@ -135,7 +146,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 Spacer(Modifier.height(12.dp))
                 BoardSelector(boardId, onSelect = { boardId = it })
                 Spacer(Modifier.height(12.dp))
-                LibInput(libsText, onChange = { libsText = it })
+                LibInput(libsText, onChange = { libsText = it }, onPickLibZip = { libZipPicker.launch("application/zip") })
                 Spacer(Modifier.height(12.dp))
                 BuildButton(
                     enabled = zipUri != null && state.status != BuildStatus.PREPARING &&
@@ -242,7 +253,7 @@ private fun BoardSelector(selected: String, onSelect: (String) -> Unit) {
 }
 
 @Composable
-private fun LibInput(value: String, onChange: (String) -> Unit) {
+private fun LibInput(value: String, onChange: (String) -> Unit, onPickLibZip: () -> Unit) {
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(Modifier.padding(16.dp)) {
             Text("自定义依赖库（可选）", style = MaterialTheme.typography.titleMedium)
@@ -255,6 +266,12 @@ private fun LibInput(value: String, onChange: (String) -> Unit) {
                 minLines = 1,
                 maxLines = 3,
             )
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = onPickLibZip, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.UploadFile, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("从本机 zip 安装库")
+            }
         }
     }
 }

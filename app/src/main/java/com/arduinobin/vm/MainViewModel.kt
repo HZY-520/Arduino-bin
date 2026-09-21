@@ -7,7 +7,11 @@ import androidx.lifecycle.ViewModel
 import com.arduinobin.build.BuildService
 import com.arduinobin.data.BuildSession
 import com.arduinobin.data.BuildUiState
+import com.arduinobin.termux.TermuxEnv
+import com.arduinobin.util.LibraryInstaller
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
 import java.io.File
 
 class MainViewModel : ViewModel() {
@@ -23,6 +27,13 @@ class MainViewModel : ViewModel() {
     ) {
         BuildService.start(context, zipUri, boardId, projectName, libraries)
     }
+
+    /** 把一个库 zip 解压安装到 arduino-cli 用户库目录。 */
+    suspend fun installLibraryFromZip(context: Context, uri: Uri): LibraryInstaller.Result =
+        withContext(Dispatchers.IO) {
+            val librariesDir = File(TermuxEnv.workspaceDir, "libraries")
+            LibraryInstaller.install(context, uri, librariesDir)
+        }
 
     /** 把构建产物复制到用户通过 SAF 选择的目录树。 */
     fun exportArtifacts(context: Context, treeUri: Uri, artifacts: List<String>): Int {
